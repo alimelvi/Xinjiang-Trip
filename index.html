@@ -1,0 +1,838 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Kashgar to Gulmit — Karakoram Highway</title>
+  <meta name="description" content="Interactive map of a four-day journey from Kashgar over the Karakoram Highway to Gulmit, with photographs of each stop and activity." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,560;9..144,640&family=Sora:wght@360;460;560&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <style>
+    :root {
+      --ink: #142033;
+      --muted: #5c6b7e;
+      --line: #e4ebf2;
+      --paper: #f4f7f6;
+      --card: #ffffff;
+      --teal: #0f6f78;
+      --teal-deep: #0b3d45;
+      --sand: #f3e6d4;
+      --act: #c4552a;
+      --shadow: 0 16px 40px rgba(16, 32, 48, 0.16);
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      font-family: Sora, "Segoe UI", sans-serif;
+      color: var(--ink);
+      background: var(--paper);
+    }
+    button, summary { font: inherit; }
+    button { cursor: pointer; }
+    .app {
+      height: 100%;
+      display: grid;
+      grid-template-rows: auto 1fr;
+    }
+    header.top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px 16px;
+      padding: 14px 20px;
+      background: var(--teal-deep);
+      color: #f4faf8;
+    }
+    header.top h1 {
+      margin: 0;
+      font-family: Fraunces, Georgia, serif;
+      font-size: 26px;
+      font-weight: 560;
+      letter-spacing: -0.03em;
+    }
+    header.top p { margin: 2px 0 0; color: #c9ddd8; font-size: 13px; }
+    .legend { display: flex; gap: 14px; align-items: center; font-size: 12px; color: #d5ebe6; }
+    .legend span { display: inline-flex; align-items: center; gap: 6px; }
+    .swatch { width: 14px; height: 14px; display: inline-block; }
+    .swatch.stop { background: var(--teal); border-radius: 8px 8px 8px 2px; }
+    .swatch.act { background: var(--act); border-radius: 50%; }
+    .stage {
+      min-height: 0;
+      display: grid;
+      grid-template-columns: 380px 1fr;
+    }
+    aside.days {
+      overflow: auto;
+      background: var(--card);
+      border-right: 1px solid var(--line);
+      padding: 8px 0 28px;
+    }
+    .day-block { border-bottom: 1px solid var(--line); }
+    .day-block > h2 {
+      margin: 0;
+      padding: 16px 18px 4px;
+      font-family: Fraunces, Georgia, serif;
+      font-size: 20px;
+      font-weight: 560;
+    }
+    .meta { margin: 0 18px 10px; color: var(--muted); font-size: 12px; }
+    .stop-card { margin: 0 12px 12px; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: #fff; }
+    .stop-head {
+      width: 100%;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      text-align: left;
+      border: 0;
+      background: #fff;
+      padding: 10px 12px;
+    }
+    .stop-head:hover, .stop-card.is-on .stop-head { background: #f3faf8; }
+    .stop-head strong { display: block; font-size: 14px; }
+    .stop-head small { color: var(--muted); font-size: 11px; }
+    .glyph {
+      width: 36px;
+      height: 36px;
+      flex: 0 0 36px;
+      display: grid;
+      place-items: center;
+      color: #fff;
+    }
+    .glyph.stop { border-radius: 12px 12px 12px 4px; }
+    .glyph.act { width: 28px; height: 28px; flex-basis: 28px; border-radius: 50%; background: var(--act); }
+    .acts { display: none; padding: 0 8px 8px; }
+    .stop-card.is-on .acts { display: block; }
+    .act-btn {
+      width: 100%;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      text-align: left;
+      border: 0;
+      background: transparent;
+      border-radius: 10px;
+      padding: 7px 6px;
+      color: var(--ink);
+    }
+    .act-btn:hover, .act-btn.is-hot { background: #fff4ee; }
+    .act-btn em { font-style: normal; font-size: 13px; }
+    .publish {
+      margin: 16px 18px 0;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .publish summary { cursor: pointer; color: var(--teal); font-weight: 560; }
+    .publish ol { margin: 8px 0 0; padding-left: 18px; }
+    #map { height: 100%; width: 100%; background: #d5e2dc; }
+    .map-wrap { position: relative; min-height: 0; }
+    .photo {
+      position: absolute;
+      z-index: 500;
+      right: 16px;
+      bottom: 16px;
+      width: min(340px, calc(100% - 32px));
+      max-height: calc(100% - 32px);
+      display: flex;
+      flex-direction: column;
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      opacity: 0;
+      transform: translateY(10px);
+      pointer-events: none;
+      transition: opacity .18s ease, transform .18s ease;
+    }
+    .photo.open { opacity: 1; transform: none; pointer-events: auto; }
+    .photo img {
+      display: block;
+      width: 100%;
+      height: 168px;
+      flex: 0 0 auto;
+      object-fit: cover;
+      background: var(--sand);
+      cursor: zoom-in;
+    }
+    .photo figcaption { padding: 12px 14px 14px; overflow: auto; }
+    .photo h3 { margin: 0 0 4px; font-family: Fraunces, Georgia, serif; font-size: 22px; font-weight: 560; }
+    .photo .where { margin: 0 0 6px; color: var(--teal); font-size: 12px; font-weight: 560; }
+    .photo p { margin: 0; font-size: 13px; line-height: 1.45; color: #314155; }
+    .photo .credit { display: block; margin-top: 8px; font-size: 11px; color: var(--muted); }
+    .photo .x {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      width: 32px;
+      height: 32px;
+      border: 0;
+      border-radius: 50%;
+      background: rgba(20, 32, 51, 0.72);
+      color: #fff;
+      font-size: 18px;
+    }
+    .pin-flag {
+      background: transparent;
+      border: 0;
+    }
+    .pin {
+      position: relative;
+      border: 0;
+      padding: 0;
+      background: transparent;
+      filter: drop-shadow(0 3px 4px rgba(0,0,0,.28));
+      transition: transform .15s ease;
+    }
+    .pin:hover, .pin.is-hot { transform: translateY(-3px) scale(1.08); }
+    .pin .body {
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      color: #fff;
+    }
+    .pin.stop .body { border-radius: 12px 12px 12px 3px; }
+    .pin.act .body {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--act);
+      border: 2px solid #fff;
+    }
+    .pin .tag {
+      position: absolute;
+      left: 40px;
+      top: 6px;
+      white-space: nowrap;
+      background: #fff;
+      color: var(--ink);
+      border-radius: 999px;
+      padding: 3px 8px;
+      font: 560 11px Sora, sans-serif;
+      box-shadow: 0 4px 12px rgba(0,0,0,.12);
+    }
+    .pin.act .tag { display: none; }
+    .pin.act:hover .tag, .pin.act.is-hot .tag { display: block; left: 34px; }
+    .leaflet-container { font-family: Sora, sans-serif; }
+    .light {
+      position: fixed;
+      inset: 0;
+      z-index: 2000;
+      background: rgba(10, 18, 28, 0.82);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .light.open { display: flex; }
+    .light img { max-width: min(1100px, 100%); max-height: 86vh; border-radius: 12px; box-shadow: var(--shadow); }
+    .light button {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      border: 0;
+      background: #fff;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      font-size: 22px;
+    }
+    @media (max-width: 860px) {
+      .stage { grid-template-columns: 1fr; grid-template-rows: 42vh 1fr; }
+      aside.days { border-right: 0; border-top: 1px solid var(--line); }
+      .legend { display: none; }
+      header.top h1 { font-size: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="top">
+      <div>
+        <h1>Kashgar to Gulmit</h1>
+        <p>Four days on the Karakoram Highway · hover a marker to see the place, click to keep it open</p>
+      </div>
+      <div class="legend" aria-hidden="true">
+        <span><i class="swatch stop"></i> Overnight &amp; route stops</span>
+        <span><i class="swatch act"></i> Activities at that stop</span>
+      </div>
+    </header>
+    <div class="stage">
+      <aside class="days" id="days"></aside>
+      <div class="map-wrap">
+        <div id="map" role="application" aria-label="Route map"></div>
+        <figure class="photo" id="photo">
+          <button class="x" type="button" id="photoClose" aria-label="Close photo">×</button>
+          <img id="photoImg" alt="" role="button" tabindex="0" aria-label="Enlarge photo" referrerpolicy="no-referrer" />
+          <figcaption>
+            <div class="where" id="photoWhere"></div>
+            <h3 id="photoTitle"></h3>
+            <p id="photoText"></p>
+            <a class="credit" id="photoCredit" target="_blank" rel="noopener noreferrer"></a>
+          </figcaption>
+        </figure>
+      </div>
+    </div>
+  </div>
+  <div class="light" id="light" hidden>
+    <button type="button" id="lightClose" aria-label="Close large photo">×</button>
+    <img id="lightImg" alt="" referrerpolicy="no-referrer" />
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script>
+    /* Backend: the itinerary lives here. The map only reads it through api.* */
+    const db = {
+      route: [
+        [39.470, 75.990], [39.298, 75.550], [38.72, 75.22], [38.439, 75.056],
+        [38.02, 75.04], [37.774, 75.229], [37.15, 75.38], [36.853, 75.428],
+        [36.72, 75.08], [36.685, 74.825], [36.50, 74.89], [36.386, 74.866]
+      ],
+      stops: [
+        {
+          id: "kashgar",
+          name: "Kashgar",
+          elev: "4,295 ft",
+          lat: 39.4704, lng: 75.9898,
+          icon: "gate", color: "#b45309",
+          blurb: "A Silk Road oasis where the road west into Central Asia and the spur south toward Hunza both began.",
+          image: "https://upload.wikimedia.org/wikipedia/commons/thumb/f/fc/East_gate_of_the_Ancient_City_of_Kashi_%2820230923104429%29.jpg/1280px-East_gate_of_the_Ancient_City_of_Kashi_%2820230923104429%29.jpg",
+          source: "https://commons.wikimedia.org/wiki/File:East_gate_of_the_Ancient_City_of_Kashi_(20230923104429).jpg",
+          credit: "East gate of old Kashgar · Wikimedia Commons",
+          activities: [
+            { id: "arrive", day: 1, name: "Arrival and hotel", icon: "bed", lat: 39.4672, lng: 75.9935,
+              text: "You are met on arrival and taken to the hotel. The rest of the day is free to recover, or to walk if you feel ready.",
+              image: "https://upload.wikimedia.org/wikipedia/commons/thumb/f/fc/East_gate_of_the_Ancient_City_of_Kashi_%2820230923104429%29.jpg/1280px-East_gate_of_the_Ancient_City_of_Kashi_%2820230923104429%29.jpg",
+              source: "https://commons.wikimedia.org/wiki/File:East_gate_of_the_Ancient_City_of_Kashi_(20230923104429).jpg",
+              credit: "Wikimedia Commons" },
+            { id: "stroll", day: 1, name: "Old-city stroll", icon: "walk", lat: 39.4715, lng: 75.9864,
+              text: "People have lived and traded here for more than two thousand years. The main Silk Road passed through before the Pamirs, and a southern branch split toward Hunza, Kashmir, the Punjab, and India.",
+              image: "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1b/Kashgar_-_old_town_houses.jpg/1280px-Kashgar_-_old_town_houses.jpg",
+              source: "https://commons.wikimedia.org/wiki/File:Kashgar_-_old_town_houses.jpg",
+              credit: "Wikimedia Commons" },
+            { id: "bazaar", day: 2, name: "Sunday bazaar", icon: "basket", lat: 39.4636, lng: 75.9992,
+              text: "Covered lanes fill with Kazakh, Tajik, and Uyghur traders, plus visitors from Beijing to New York. Stalls hold rock sugar, Kashgar bread, hats, knives, boots, rugs, and silk.",
+              image: "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3f/Kashgar_Sunday_Market_%2823410479223%29.jpg/1280px-Kashgar_Sunday_Market_%2823410479223%29.jpg",
+              source: "https://commons.wikimedia.org/wiki/File:Kashgar_Sunday_Market_(23410479223).jpg",
+              credit: "Wikimedia Commons" },
+            { id: "livestock", day: 2, name: "Livestock market", icon: "horse", lat: 39.4578, lng: 76.0115,
+              text: "Buyers and sellers run horses up a dusty alley, then stop for a cold sweet made from oasis fruit and stored winter ice.",
+              image: "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6b/Kashgar_Sunday_Market_%2823741606770%29.jpg/1280px-Kashgar_Sunday_Market_%2823741606770%29.jpg",
+              source: "https://commons.wikimedia.org/wiki/File:Kashgar_Sunday_Market_(23741606770).jpg",
+              credit: "Wikimedia Commons" },
+            { id: "idkah", day: 2, name: "Id Kah Mosque", icon: "crescent", lat: 39.47278, lng: 75.97972,
+              text: "China’s largest mosque is a quiet courtyard in the middle of the noise. It is a good place to sit and watch the city move.",
+              image: "https://upload.wikimedia.org/wikipedia/commons/thumb/d/de/Id_Kah_Mosque_Kashgar.jpg/1280px-Id_Kah_Mosque_Kashgar.jpg",
+              source: "https://commons.wikimedia.org/wiki/File:Id_Kah_Mosque_Kashgar.jpg",
+              credit: "Wikimedia Commons" },
+            { id: "tomb", day: 2, name: "Tomb of Abakh Hoja", icon: "dome", lat: 39.49076, lng: 76.02295,
+              text: "Also called the Tomb of the Fragrant Concubine. Uyghur accounts say Abakh Hoja’s grandniece took her own life rather than go to Emperor Qianlong’s court. Han accounts say she lived out her years in Beijing. The tomb opened in the 1980s was empty.",
+              image: "https://upload.wikimedia.org/wikipedia/commons/c/ca/Afaq_Khoja_Mausoleum_%28front%2C_crop%29.jpg",
+              source: "https://commons.wikimedia.org/wiki/File:Afaq_Khoja_Mausoleum_(front,_crop).jpg",
+              credit: "Wikimedia Commons" },
+            { id: "dinner", day: 2, name: "Dinner with a local family", icon: "bowl", lat: 39.4696, lng: 75.9822,
+              text: "The afternoon ends in the walled lanes, watching cooks make dishes that are hard to name and very local. Dinner is in a family home.",
+              image: "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0b/Gate_of_Khan_Bazaar%2C_Ancient_City_of_Kashi_%2820230923191916%29.jpg/1280px-Gate_of_Khan_Bazaar%2C_Ancient_City_of_Kashi_%2820230923191916%29.jpg",
+              source: "https://commons.wikimedia.org/wiki/File:Gate_of_Khan_Bazaar,_Ancient_City_of_Kashi_(20230923191916).jpg",
+              credit: "Khan Bazaar gate, old Kashgar · Wikimedia Commons" }
+          ]
+        },
+        {
+          id: "upal",
+          name: "Upal",
+          elev: "highway stop",
+          lat: 39.298, lng: 75.550,
+          icon: "basket", color: "#a16207",
+          blurb: "The first halt on the Karakoram Highway, timed for the village Monday market.",
+          image: "https://upload.wikimedia.org/wikipedia/commons/thumb/1/10/Fly_over_Pamir_Mountains_and_Karakoram_Highway.jpg/960px-Fly_over_Pamir_Mountains_and_Karakoram_Highway.jpg",
+          source: "https://commons.wikimedia.org/wiki/File:Fly_over_Pamir_Mountains_and_Karakoram_Highway.jpg",
+          credit: "Karakoram Highway and the Pamirs · Wikimedia Commons",
+          activities: [
+            { id: "market", day: 3, name: "Monday market", icon: "basket", lat: 39.301, lng: 75.545,
+              text: "After breakfast the road leaves Kashgar to the southwest and stops at Upal, where the Monday market is already underway.",
+              image: "https://upload.wikimedia.org/wikipedia/commons/thumb/4/44/Kashgar_Sunday_Market_%2824037230815%29.jpg/1280px-Kashgar_Sunday_Market_%2824037230815%29.jpg",
+              source: "https://commons.wikimedia.org/wiki/File:Kashgar_Sunday_Market_(24037230815).jpg",
+              credit: "Xinjiang market day · Wikimedia Commons" },
+            { id: "pamirs", day: 3, name: "First view of the Pamirs", icon: "peaks", lat: 39.255, lng: 75.470,
+              text: "Kashgar sits a little above 4,000 feet. Within a short distance the Pamirs rise some 20,000 feet overhead, five great ranges spreading from one knot: Tien Shan, Kunlun, Karakoram, Hindu Kush, and the Himalaya.",
+              image: "https://upload.wikimedia.org/wikipedia/commons/e/ed/Xinjiang_Pamir_Mountains_%2841655129502%29.jpg",
+              source: "https://commons.wikimedia.org/wiki/File:Xinjiang_Pamir_Mountains_(41655129502).jpg",
+              credit: "Wikimedia Commons" }
+          ]
+        },
+        {
+          id: "karakol",
+          name: "Lake Karakol",
+          elev: "about 10,500 ft",
+          lat: 38.439, lng: 75.056,
+          icon: "lake", color: "#0369a1",
+          blurb: "Lunch beside the lake where Francis Younghusband camped in 1891, under Mustagh Ata and Kongur.",
+          image: "https://upload.wikimedia.org/wikipedia/commons/2/2c/Karakul_Lake.jpg",
+          source: "https://commons.wikimedia.org/wiki/File:Karakul_Lake.jpg",
+          credit: "Wikimedia Commons",
+          activities: [
+            { id: "lunch", day: 3, name: "Lunch on the shore", icon: "bowl", lat: 38.446, lng: 75.048,
+              text: "Younghusband called it a lake with utterly particular surroundings: clear blue water, grassy banks, and two huge mountains standing over it.",
+              image: "https://upload.wikimedia.org/wikipedia/commons/2/2c/Karakul_Lake.jpg",
+              source: "https://commons.wikimedia.org/wiki/File:Karakul_Lake.jpg",
+              credit: "Wikimedia Commons" },
+            { id: "mustagh", day: 3, name: "Mustagh Ata", icon: "peaks", lat: 38.426, lng: 75.078,
+              text: "Mustagh Ata, the Father of Ice Mountains, is 24,750 feet. Stein, Shipton, Tilman, and Sven Hedin all failed on it. A Chinese party reached the top in 1954.",
+              image: "https://upload.wikimedia.org/wikipedia/commons/d/d8/Karakul-muztagh-ata-d12.jpg",
+              source: "https://commons.wikimedia.org/wiki/File:Karakul-muztagh-ata-d12.jpg",
+              credit: "Wikimedia Commons" },
+            { id: "kongur", day: 3, name: "Kongur", icon: "peaks", lat: 38.452, lng: 75.018,
+              text: "Kongur, 25,318 feet, stayed unclimbed until a British ascent in 1981. The slopes look gentle from the lake and are not.",
+              image: "https://upload.wikimedia.org/wikipedia/commons/c/c5/Mt_Kongur_Lake_Karakul_Xinjiang_China.jpg",
+              source: "https://commons.wikimedia.org/wiki/File:Mt_Kongur_Lake_Karakul_Xinjiang_China.jpg",
+              credit: "Wikimedia Commons" },
+            { id: "yurt", day: 3, name: "Kyrgyz camp", icon: "home", lat: 38.434, lng: 75.066,
+              text: "Kyrgyz herders still use this shore. The highway lunch stop sits among their camps, with the peaks filling the far side of the water.",
+              image: "https://upload.wikimedia.org/wikipedia/commons/thumb/2/21/Kyrgyz_Yurt_at_Karakul_Lake.jpg/1280px-Kyrgyz_Yurt_at_Karakul_Lake.jpg",
+              source: "https://commons.wikimedia.org/wiki/File:Kyrgyz_Yurt_at_Karakul_Lake.jpg",
+              credit: "Wikimedia Commons" }
+          ]
+        },
+        {
+          id: "tashkorgan",
+          name: "Tashkorgan",
+          elev: "high meadow",
+          lat: 37.773, lng: 75.229,
+          icon: "fort", color: "#6d28d9",
+          blurb: "Overnight in high pasture under dark peaks, about 30 miles from the old Soviet frontier.",
+          image: "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6f/Stone_City%2C_Tashkurgan.JPG/1280px-Stone_City%2C_Tashkurgan.JPG",
+          source: "https://commons.wikimedia.org/wiki/File:Stone_City,_Tashkurgan.JPG",
+          credit: "Wikimedia Commons",
+          activities: [
+            { id: "fort", day: 3, name: "Stone fortress", icon: "fort", lat: 37.778, lng: 75.233,
+              text: "Tashkorgan takes its name from the stone fort above the meadows. It guarded the roads toward Kashgar, the Wakhan, and Hunza.",
+              image: "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b9/Tashkurgan_Fort_in_Tashkurgan.jpg/1280px-Tashkurgan_Fort_in_Tashkurgan.jpg",
+              source: "https://commons.wikimedia.org/wiki/File:Tashkurgan_Fort_in_Tashkurgan.jpg",
+              credit: "Wikimedia Commons" },
+            { id: "game", day: 3, name: "Great Game frontier", icon: "book", lat: 37.768, lng: 75.218,
+              text: "In tsarist times a Cossack patrol was kept here without permission. Later the Bolsheviks watched the town from Kazil Rabat. The area stayed closed to outsiders until 1986.",
+              image: "https://upload.wikimedia.org/wikipedia/commons/d/d1/Ancient_Tashkurgan_%2841062197074%29.jpg",
+              source: "https://commons.wikimedia.org/wiki/File:Ancient_Tashkurgan_(41062197074).jpg",
+              credit: "Wikimedia Commons" },
+            { id: "customs-cn", day: 4, name: "Chinese immigration", icon: "stamp", lat: 37.760, lng: 75.242,
+              text: "The morning of the border day starts with Chinese immigration and customs, before the climb toward Khunjerab.",
+              image: "https://upload.wikimedia.org/wikipedia/commons/3/3d/Pamir_Mountains_%2839943272200%29.jpg",
+              source: "https://commons.wikimedia.org/wiki/File:Pamir_Mountains_(39943272200).jpg",
+              credit: "Pamirs above the highway · Wikimedia Commons" }
+          ]
+        },
+        {
+          id: "khunjerab",
+          name: "Khunjerab Pass",
+          elev: "16,188 ft",
+          lat: 36.853, lng: 75.428,
+          icon: "pass", color: "#0f766e",
+          blurb: "The broad summit where the highway leaves China for Pakistan.",
+          image: "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ab/Khunjerab_Pass_Karakorum.jpg/1280px-Khunjerab_Pass_Karakorum.jpg",
+          source: "https://commons.wikimedia.org/wiki/File:Khunjerab_Pass_Karakorum.jpg",
+          credit: "Wikimedia Commons",
+          activities: [
+            { id: "plateau", day: 4, name: "Pamir plateau", icon: "peaks", lat: 37.120, lng: 75.390,
+              text: "The road crosses a bare plateau close to the Wakhan Corridor, the narrow strip of Afghanistan that Britain and Russia drew so their empires would not touch.",
+              image: "https://upload.wikimedia.org/wikipedia/commons/e/ed/Xinjiang_Pamir_Mountains_%2841655129502%29.jpg",
+              source: "https://commons.wikimedia.org/wiki/File:Xinjiang_Pamir_Mountains_(41655129502).jpg",
+              credit: "Wikimedia Commons" },
+            { id: "summit", day: 4, name: "The pass", icon: "pass", lat: 36.853, lng: 75.435,
+              text: "Khunjerab is a wide, high saddle at 16,188 feet. This is Marco Polo sheep and snow leopard country, with glaciers on the descent that follows.",
+              image: "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ab/Khunjerab_Pass_Karakorum.jpg/1280px-Khunjerab_Pass_Karakorum.jpg",
+              source: "https://commons.wikimedia.org/wiki/File:Khunjerab_Pass_Karakorum.jpg",
+              credit: "Wikimedia Commons" },
+            { id: "sign", day: 4, name: "Border marker", icon: "stamp", lat: 36.849, lng: 75.418,
+              text: "The marker on the pass is the handover between the Chinese morning and the Pakistani afternoon.",
+              image: "https://upload.wikimedia.org/wikipedia/commons/thumb/3/33/Khunjerab_Pass_Sign.jpg/1280px-Khunjerab_Pass_Sign.jpg",
+              source: "https://commons.wikimedia.org/wiki/File:Khunjerab_Pass_Sign.jpg",
+              credit: "Wikimedia Commons" }
+          ]
+        },
+        {
+          id: "sost",
+          name: "Sost",
+          elev: "Pakistan customs",
+          lat: 36.685, lng: 74.825,
+          icon: "stamp", color: "#be123c",
+          blurb: "Pakistani formalities, then a change of drivers for the run into Hunza.",
+          image: "https://upload.wikimedia.org/wikipedia/commons/6/63/Sost_Pakistan_Customs_and_Chinese_Trucks_IMG_7494_China_Pakistan_Karakoram_Highway_KKH.jpg",
+          source: "https://commons.wikimedia.org/wiki/File:Sost_Pakistan_Customs_and_Chinese_Trucks_IMG_7494_China_Pakistan_Karakoram_Highway_KKH.jpg",
+          credit: "Wikimedia Commons",
+          activities: [
+            { id: "customs-pk", day: 4, name: "Pakistan customs", icon: "stamp", lat: 36.688, lng: 74.818,
+              text: "At Sost the group clears Pakistani customs, meets the local drivers, and continues down the valley. Hunza was an independent kingdom until Pakistan annexed it in 1974.",
+              image: "https://upload.wikimedia.org/wikipedia/commons/6/63/Sost_Pakistan_Customs_and_Chinese_Trucks_IMG_7494_China_Pakistan_Karakoram_Highway_KKH.jpg",
+              source: "https://commons.wikimedia.org/wiki/File:Sost_Pakistan_Customs_and_Chinese_Trucks_IMG_7494_China_Pakistan_Karakoram_Highway_KKH.jpg",
+              credit: "Wikimedia Commons" },
+            { id: "valley", day: 4, name: "Sost valley", icon: "walk", lat: 36.676, lng: 74.842,
+              text: "Below the pass the country changes quickly: from the sandy plateau into a steep, green valley cut by glaciers.",
+              image: "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4f/Sost_Valley%2C_Pak-China_Border%2C_Pakistan.jpg/1280px-Sost_Valley%2C_Pak-China_Border%2C_Pakistan.jpg",
+              source: "https://commons.wikimedia.org/wiki/File:Sost_Valley,_Pak-China_Border,_Pakistan.jpg",
+              credit: "Wikimedia Commons" }
+          ]
+        },
+        {
+          id: "gulmit",
+          name: "Gulmit",
+          elev: "7,900 ft",
+          lat: 36.386, lng: 74.866,
+          icon: "leaf", color: "#15803d",
+          blurb: "The first night in the Hunza Valley, after about six hours on the road including both borders.",
+          image: "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1c/Gulmit_Gojal_Hunza%2C_GB.jpg/1280px-Gulmit_Gojal_Hunza%2C_GB.jpg",
+          source: "https://commons.wikimedia.org/wiki/File:Gulmit_Gojal_Hunza,_GB.jpg",
+          credit: "Wikimedia Commons",
+          activities: [
+            { id: "village", day: 4, name: "Gulmit village", icon: "home", lat: 36.388, lng: 74.860,
+              text: "Gulmit is the old summer seat of Gojal, set among orchards with the high peaks still close overhead.",
+              image: "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a0/Gulmit_hunza_best.jpg/1280px-Gulmit_hunza_best.jpg",
+              source: "https://commons.wikimedia.org/wiki/File:Gulmit_hunza_best.jpg",
+              credit: "Wikimedia Commons" },
+            { id: "river", day: 4, name: "Hunza River", icon: "lake", lat: 36.378, lng: 74.878,
+              text: "The highway follows the river into one of the greenest valleys on the route, a sharp change from the plateau at the pass.",
+              image: "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f2/Hunza_River_near_Gulmit_Hunza.jpg/1280px-Hunza_River_near_Gulmit_Hunza.jpg",
+              source: "https://commons.wikimedia.org/wiki/File:Hunza_River_near_Gulmit_Hunza.jpg",
+              credit: "Wikimedia Commons" },
+            { id: "highway", day: 4, name: "Evening in the valley", icon: "bed", lat: 36.396, lng: 74.850,
+              text: "The day ends at the hotel in Gulmit. Meals today are breakfast, lunch, and dinner, with most of the hours spent on the road between the two borders.",
+              image: "https://upload.wikimedia.org/wikipedia/commons/thumb/9/95/Karakoram_highway%2C_Hunza_Valley.jpg/1280px-Karakoram_highway%2C_Hunza_Valley.jpg",
+              source: "https://commons.wikimedia.org/wiki/File:Karakoram_highway,_Hunza_Valley.jpg",
+              credit: "Wikimedia Commons" }
+          ]
+        }
+      ]
+    };
+
+    const DAYS = [
+      { n: 1, title: "Arrive in Kashgar", meals: "Dinner" },
+      { n: 2, title: "Kashgar", meals: "Breakfast, lunch, dinner" },
+      { n: 3, title: "Karakoram Highway to Tashkorgan", meals: "Breakfast, lunch, dinner · about six hours driving" },
+      { n: 4, title: "Over Khunjerab to Gulmit", meals: "Breakfast, lunch, dinner · about six hours, with both borders" }
+    ];
+
+    const GLYPH = {
+      gate: '<path d="M4 20V9l8-5 8 5v11h-5v-6H9v6H4z"/>',
+      basket: '<path d="M4 9h16l-1.4 9.2a2 2 0 0 1-2 1.8H7.4a2 2 0 0 1-2-1.8L4 9zm2.2-3h11.6l1 3H5.2l1-3z"/>',
+      lake: '<path d="M3 15c2 0 2-2 4-2s2 2 4 2 2-2 4-2 2 2 4 2M3 19c2 0 2-2 4-2s2 2 4 2 2-2 4-2 2 2 4 2M12 4l2.2 4.2H8z"/>',
+      fort: '<path d="M4 20V10h3V7h3v3h4V7h3v3h3v10H4zm6-2h4v-4h-4v4z"/>',
+      pass: '<path d="M2 18l5-8 3 4 3-6 4 6 5-4v8H2z"/>',
+      stamp: '<path d="M7 3h10v6H7V3zM5 11h14v3H5v-3zm-1 5h16v3H4v-3z"/>',
+      leaf: '<path d="M5 19C5 11 12 4 20 4c0 8-7 15-15 15zm0 0c2-4 5-7 9-9"/>',
+      bed: '<path d="M3 18V8h2v5h6V9h8a3 3 0 0 1 3 3v6h-2v-2H5v2H3zm4-8a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"/>',
+      walk: '<path d="M13 5a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM8 21l2-6 2 2v4h2v-5l-2-3 1-4a3 3 0 0 0-5 .4L6 12l1.6 1L8 21z"/>',
+      horse: '<path d="M5 15c0-4 3-6 6-6 1 0 2 .2 3 .6L16 7l3 1-1 3c1 .8 2 2 2 4v5h-3v-3H8v3H5v-5z"/>',
+      crescent: '<path d="M14 4a7 7 0 1 0 5 12 6 6 0 0 1-5-12z"/>',
+      dome: '<path d="M4 18h16v2H4v-2zm2-2V11a6 6 0 0 1 12 0v5H6zm5-9h2v2h-2V7z"/>',
+      bowl: '<path d="M4 10h16a7 7 0 0 1-14 0h-2zm2-3h12v2H6V7z"/>',
+      peaks: '<path d="M2 18L8 6l4 7 2-3 8 8H2z"/>',
+      home: '<path d="M4 11l8-7 8 7v8h-5v-5H9v5H4v-8z"/>',
+      book: '<path d="M5 4h6a3 3 0 0 1 3 3v13a3 3 0 0 0-3-3H5V4zm14 0h-6a3 3 0 0 0-3 3v13a3 3 0 0 1 3-3h6V4z"/>'
+    };
+
+    const api = {
+      days() { return DAYS; },
+      stops() { return db.stops; },
+      route() { return db.route; },
+      stop(id) { return db.stops.find((s) => s.id === id) || null; },
+      activity(stopId, actId) {
+        const stop = api.stop(stopId);
+        if (!stop) return null;
+        const activity = stop.activities.find((a) => a.id === actId);
+        return activity ? { stop, activity } : null;
+      },
+      activitiesOn(day) {
+        const rows = [];
+        db.stops.forEach((stop) => {
+          stop.activities.forEach((activity) => {
+            if (activity.day === day) rows.push({ stop, activity });
+          });
+        });
+        return rows;
+      }
+    };
+
+    function svg(name) {
+      return '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true">' + (GLYPH[name] || GLYPH.gate) + "</svg>";
+    }
+
+    const daysEl = document.getElementById("days");
+    const photoEl = document.getElementById("photo");
+    const photoImg = document.getElementById("photoImg");
+    const lightEl = document.getElementById("light");
+    let map, routeLine;
+    const stopMarkers = new Map();
+    const actMarkers = new Map();
+    let activeStop = null;
+    let pinnedKey = null;
+    let hoverKey = null;
+    let closeTimer = null;
+    let overCard = false;
+
+    function renderSidebar() {
+      const html = api.days().map((day) => {
+        const groups = [];
+        const seen = new Set();
+        api.activitiesOn(day.n).forEach(({ stop }) => {
+          if (seen.has(stop.id)) return;
+          seen.add(stop.id);
+          const acts = stop.activities.filter((a) => a.day === day.n).map((a) =>
+            '<button type="button" class="act-btn" data-stop="' + stop.id + '" data-act="' + a.id + '">' +
+            '<span class="glyph act">' + svg(a.icon) + "</span><em>" + a.name + "</em></button>"
+          ).join("");
+          groups.push(
+            '<article class="stop-card" data-stop="' + stop.id + '">' +
+            '<button type="button" class="stop-head" data-stop="' + stop.id + '">' +
+            '<span class="glyph stop" style="background:' + stop.color + '">' + svg(stop.icon) + "</span>" +
+            "<span><strong>" + stop.name + "</strong><small>" + stop.elev + "</small></span></button>" +
+            '<div class="acts">' + acts + "</div></article>"
+          );
+        });
+        return '<section class="day-block"><h2>Day ' + day.n + " · " + day.title + "</h2>" +
+          '<p class="meta">' + day.meals + "</p>" + groups.join("") + "</section>";
+      }).join("");
+      daysEl.innerHTML = html +
+        '<details class="publish"><summary>Publish this file on GitHub</summary>' +
+        "<ol><li>Create a public repository.</li><li>Upload this <code>index.html</code> to the repository root.</li>" +
+        "<li>Settings → Pages → Deploy from branch → main → / (root).</li>" +
+        "<li>Open the Pages URL. The map, photos, and itinerary are all in this one file.</li></ol></details>";
+    }
+
+    function markerIcon(kind, color, glyph, label) {
+      const cls = kind === "stop" ? "pin stop" : "pin act";
+      const style = kind === "stop" ? ' style="background:' + color + '"' : "";
+      const tag = label ? '<span class="tag">' + label + "</span>" : "";
+      return L.divIcon({
+        className: "pin-flag",
+        iconSize: [34, 34],
+        iconAnchor: [8, 32],
+        html: '<div class="' + cls + '"><span class="body"' + style + ">" + svg(glyph) + "</span>" + tag + "</div>"
+      });
+    }
+
+    function keyOf(stopId, actId) { return actId ? stopId + "/" + actId : stopId; }
+
+    function payload(stopId, actId) {
+      if (actId) {
+        const row = api.activity(stopId, actId);
+        if (!row) return null;
+        return {
+          key: keyOf(stopId, actId),
+          title: row.activity.name,
+          where: row.stop.name + " · Day " + row.activity.day,
+          text: row.activity.text,
+          image: row.activity.image,
+          source: row.activity.source,
+          credit: row.activity.credit,
+          alt: row.activity.name + ", " + row.stop.name
+        };
+      }
+      const stop = api.stop(stopId);
+      return {
+        key: stopId,
+        title: stop.name,
+        where: stop.elev,
+        text: stop.blurb,
+        image: stop.image,
+        source: stop.source,
+        credit: stop.credit,
+        alt: stop.name
+      };
+    }
+
+    function showPhoto(data) {
+      clearTimeout(closeTimer);
+      photoImg.src = data.image;
+      photoImg.alt = data.alt;
+      document.getElementById("photoWhere").textContent = data.where;
+      document.getElementById("photoTitle").textContent = data.title;
+      document.getElementById("photoText").textContent = data.text;
+      const credit = document.getElementById("photoCredit");
+      credit.href = data.source;
+      credit.textContent = data.credit;
+      photoEl.dataset.key = data.key;
+      photoEl.classList.add("open");
+      document.querySelectorAll(".act-btn").forEach((btn) => {
+        btn.classList.toggle("is-hot", keyOf(btn.dataset.stop, btn.dataset.act) === data.key);
+      });
+    }
+
+    function hidePhoto() {
+      if (pinnedKey || overCard) return;
+      photoEl.classList.remove("open");
+      hoverKey = null;
+      document.querySelectorAll(".act-btn.is-hot").forEach((btn) => btn.classList.remove("is-hot"));
+      document.querySelectorAll(".pin.is-hot").forEach((el) => el.classList.remove("is-hot"));
+    }
+
+    function scheduleHide() {
+      clearTimeout(closeTimer);
+      closeTimer = setTimeout(hidePhoto, 220);
+    }
+
+    function openLight() {
+      if (!photoEl.classList.contains("open")) return;
+      document.getElementById("lightImg").src = photoImg.src;
+      document.getElementById("lightImg").alt = photoImg.alt;
+      lightEl.hidden = false;
+      lightEl.classList.add("open");
+    }
+
+    function closeLight() {
+      lightEl.classList.remove("open");
+      lightEl.hidden = true;
+    }
+
+    function setActiveStop(id, fit) {
+      activeStop = id;
+      document.querySelectorAll(".stop-card").forEach((card) => {
+        card.classList.toggle("is-on", card.dataset.stop === id);
+      });
+      stopMarkers.forEach((marker, sid) => {
+        const el = marker.getElement();
+        if (!el) return;
+        el.querySelector(".pin").classList.toggle("is-hot", sid === id);
+      });
+      actMarkers.forEach((marker, k) => {
+        const show = k.startsWith(id + "/");
+        if (show) marker.addTo(map);
+        else map.removeLayer(marker);
+      });
+      if (fit && id) {
+        const stop = api.stop(id);
+        const bounds = L.latLngBounds([[stop.lat, stop.lng]]);
+        stop.activities.forEach((a) => bounds.extend([a.lat, a.lng]));
+        map.fitBounds(bounds.pad(0.35), { maxZoom: 13 });
+      }
+      if (fit) {
+        const card = document.querySelector('.stop-card.is-on');
+        if (card) card.scrollIntoView({ block: "nearest" });
+      }
+    }
+
+    function bindMarker(marker, stopId, actId) {
+      const el = () => marker.getElement() && marker.getElement().querySelector(".pin");
+      marker.on("mouseover", () => {
+        hoverKey = keyOf(stopId, actId);
+        const pin = el();
+        if (pin) pin.classList.add("is-hot");
+        showPhoto(payload(stopId, actId));
+      });
+      marker.on("mouseout", () => {
+        const pin = el();
+        if (pin && pinnedKey !== keyOf(stopId, actId)) pin.classList.remove("is-hot");
+        if (pinnedKey) return;
+        scheduleHide();
+      });
+      marker.on("click", (event) => {
+        L.DomEvent.stopPropagation(event);
+        const k = keyOf(stopId, actId);
+        if (actId) setActiveStop(stopId, false);
+        if (pinnedKey === k) {
+          pinnedKey = null;
+          scheduleHide();
+          return;
+        }
+        pinnedKey = k;
+        showPhoto(payload(stopId, actId));
+      });
+    }
+
+    function bootMap() {
+      map = L.map("map", { scrollWheelZoom: true, zoomControl: true }).setView([38.2, 75.2], 7);
+      map.createPane("labels");
+      map.getPane("labels").style.zIndex = 450;
+      map.getPane("labels").style.pointerEvents = "none";
+      L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
+        attribution: "Tiles &copy; Esri",
+        maxZoom: 18
+      }).addTo(map);
+      L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}", {
+        maxZoom: 18,
+        pane: "labels"
+      }).addTo(map);
+      L.polyline(api.route(), { color: "#102030", weight: 8, opacity: 0.45 }).addTo(map);
+      routeLine = L.polyline(api.route(), {
+        color: "#f4d35e", weight: 4, opacity: 0.95
+      }).addTo(map);
+
+      api.stops().forEach((stop) => {
+        const marker = L.marker([stop.lat, stop.lng], {
+          icon: markerIcon("stop", stop.color, stop.icon, stop.name),
+          zIndexOffset: 400,
+          keyboard: true,
+          title: stop.name
+        }).addTo(map);
+        bindMarker(marker, stop.id, null);
+        stopMarkers.set(stop.id, marker);
+        stop.activities.forEach((act) => {
+          const m = L.marker([act.lat, act.lng], {
+            icon: markerIcon("act", stop.color, act.icon, act.name),
+            zIndexOffset: 500,
+            keyboard: true,
+            title: act.name
+          });
+          bindMarker(m, stop.id, act.id);
+          actMarkers.set(stop.id + "/" + act.id, m);
+        });
+      });
+      map.fitBounds(routeLine.getBounds().pad(0.15));
+      map.on("click", () => {
+        pinnedKey = null;
+        scheduleHide();
+      });
+    }
+
+    daysEl.addEventListener("click", (event) => {
+      const act = event.target.closest(".act-btn");
+      if (act) {
+        setActiveStop(act.dataset.stop, true);
+        const k = keyOf(act.dataset.stop, act.dataset.act);
+        pinnedKey = pinnedKey === k ? null : k;
+        if (pinnedKey) showPhoto(payload(act.dataset.stop, act.dataset.act));
+        else scheduleHide();
+        return;
+      }
+      const head = event.target.closest(".stop-head");
+      if (head) {
+        const id = head.dataset.stop;
+        const opening = activeStop !== id;
+        setActiveStop(opening ? id : null, opening);
+        pinnedKey = opening ? id : null;
+        if (opening) showPhoto(payload(id, null));
+        else scheduleHide();
+      }
+    });
+
+    daysEl.addEventListener("mouseover", (event) => {
+      const act = event.target.closest(".act-btn");
+      if (!act || pinnedKey) return;
+      setActiveStop(act.dataset.stop, false);
+      showPhoto(payload(act.dataset.stop, act.dataset.act));
+    });
+    daysEl.addEventListener("mouseout", (event) => {
+      if (event.target.closest(".act-btn") && !pinnedKey) scheduleHide();
+    });
+
+    photoEl.addEventListener("mouseenter", () => { overCard = true; clearTimeout(closeTimer); });
+    photoEl.addEventListener("mouseleave", () => { overCard = false; if (!pinnedKey) scheduleHide(); });
+    photoImg.addEventListener("click", openLight);
+    document.getElementById("photoClose").addEventListener("click", () => {
+      pinnedKey = null;
+      overCard = false;
+      hidePhoto();
+    });
+    document.getElementById("lightClose").addEventListener("click", closeLight);
+    lightEl.addEventListener("click", (event) => { if (event.target === lightEl) closeLight(); });
+    document.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape") return;
+      if (lightEl.classList.contains("open")) closeLight();
+      else { pinnedKey = null; overCard = false; hidePhoto(); }
+    });
+
+    renderSidebar();
+    bootMap();
+  </script>
+</body>
+</html>
